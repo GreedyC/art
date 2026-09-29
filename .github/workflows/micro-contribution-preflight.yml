@@ -1,0 +1,70 @@
+name: Micro contribution preflight
+
+on:
+  push:
+    branches: [codex/preflight-micro-three]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.project.name }} / ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.10', '3.14']
+        project:
+          - name: art
+            repository: GreedyC/art
+            ref: a0850aad972c2c2152de52feddc783eed1f0341b
+          - name: pycm
+            repository: GreedyC/pycm
+            ref: 72351d0dc222258189ac657b92eede37d2bec27b
+          - name: exrex
+            repository: GreedyC/exrex
+            ref: ee7681a6a00c330fa147e2c3b6f734a9bd7d9a60
+    env:
+      PYTHONUTF8: '1'
+      PYTHONIOENCODING: utf-8
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.project.repository }}
+          ref: ${{ matrix.project.ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install ART
+        if: matrix.project.name == 'art'
+        run: python -m pip install . -r requirements-dev.txt
+      - name: ART tests and data checks
+        if: matrix.project.name == 'art'
+        run: |
+          python -m art test2
+          python otherfile/font_check.py
+          python otherfile/art_decor_check.py
+          python -m pydocstyle --match="(?!test).*\.py" art
+          python -m bandit -r art -s B311 -q
+      - name: Install PyCM
+        if: matrix.project.name == 'pycm'
+        run: python -m pip install . -r requirements-dev.txt
+      - name: PyCM basic suite
+        if: matrix.project.name == 'pycm'
+        run: python -m pytest --cov=pycm --cov-report=term --ignore-glob=Test/plot_test.py
+      - name: Install plot dependencies
+        if: matrix.project.name == 'pycm'
+        run: python -m pip install -r requirements-plot.txt
+      - name: PyCM plot suite
+        if: matrix.project.name == 'pycm'
+        run: python -m pytest --cov=pycm --cov-report=term --ignore-glob=Test/plot_error_test.py
+      - name: Exrex suite and documented example
+        if: matrix.project.name == 'exrex'
+        run: |
+          python tests.py
+          python -c "import exrex; assert list(exrex.generate(r'[\u0100-\u0102]')) == [chr(n) for n in range(0x100, 0x103)]"
+          python exrex.py '[\u0100-\u0102]'
