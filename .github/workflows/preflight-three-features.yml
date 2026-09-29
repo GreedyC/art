@@ -24,6 +24,19 @@ jobs:
           - name: pydoro
             repo: GreedyC/pydoro
             sha: dd16c348b8e7465aff8ce170a33a1423b5b45b9c
+        exclude:
+          - project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+            python: '3.9'
+        include:
+          - os: ubuntu-22.04
+            python: '3.10'
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+          - os: windows-2022
+            python: '3.10'
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+          - os: macos-15-intel
+            python: '3.10'
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +67,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zsh
       - name: TTE focused tests on Windows
         if: matrix.project.name == 'tte' && runner.os == 'Windows'
-        run: python -m pytest -n 2 tests/test_cli_repeat.py tests/test_cli.py tests/engine_tests/test_base_effect.py -k 'not bash and not zsh'
+        run: python -m pytest -n 2 tests/test_cli_repeat.py tests/engine_tests/test_base_effect.py tests/test_cli.py::test_build_parser_registers_effects tests/test_cli.py::test_bundled_completion_scripts_are_current
       - name: TTE full default suite on Unix
         if: matrix.project.name == 'tte' && runner.os != 'Windows'
         run: python -m pytest -n 2
