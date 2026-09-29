@@ -20,23 +20,23 @@ jobs:
             sha: c06cd537617c4a5e45576341a5afffa6aeb6f708
           - name: tte
             repo: GreedyC/terminaltexteffects
-            sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09
+            sha: d8f3aa80dd4a644e57f15970507dc71673a1fdd0
           - name: pydoro
             repo: GreedyC/pydoro
             sha: dd16c348b8e7465aff8ce170a33a1423b5b45b9c
         exclude:
-          - project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+          - project: {name: tte, repo: GreedyC/terminaltexteffects, sha: d8f3aa80dd4a644e57f15970507dc71673a1fdd0}
             python: '3.9'
         include:
           - os: ubuntu-22.04
             python: '3.10'
-            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: d8f3aa80dd4a644e57f15970507dc71673a1fdd0}
           - os: windows-2022
             python: '3.10'
-            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: d8f3aa80dd4a644e57f15970507dc71673a1fdd0}
           - os: macos-15-intel
             python: '3.10'
-            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09}
+            project: {name: tte, repo: GreedyC/terminaltexteffects, sha: d8f3aa80dd4a644e57f15970507dc71673a1fdd0}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,7 +67,17 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y zsh
       - name: TTE focused tests on Windows
         if: matrix.project.name == 'tte' && runner.os == 'Windows'
-        run: python -m pytest -n 2 tests/test_cli_repeat.py tests/engine_tests/test_base_effect.py tests/test_cli.py::test_build_parser_registers_effects tests/test_cli.py::test_bundled_completion_scripts_are_current
+        run: python -m pytest -n 2 tests/test_cli_repeat.py tests/engine_tests/test_base_effect.py tests/test_cli.py::test_build_parser_registers_effects tests/test_cli.py::test_bundled_completion_scripts_are_current tests/effects_tests/test_swarm.py::test_swarm_preserves_area_count_when_focus_coordinates_repeat
+      - name: Report zsh directory audit (diagnostic only)
+        if: matrix.project.name == 'tte' && runner.os != 'Windows'
+        run: /bin/zsh -fc 'autoload -Uz compaudit; compaudit || [[ $? -eq 1 ]]'
+      - name: TTE deterministic failure regressions on Unix
+        if: matrix.project.name == 'tte' && runner.os != 'Windows'
+        run: python -m pytest tests/effects_tests/test_swarm.py::test_swarm_preserves_area_count_when_focus_coordinates_repeat tests/test_cli.py::test_zsh_completion_excludes_insecure_directory_without_prompt tests/test_cli.py::test_zsh_completion_registers_in_clean_shell
+      - name: TTE repeat Swarm coordination with 100 random seeds
+        if: matrix.project.name == 'tte'
+        run: |
+          python -c 'import random, runpy; test=runpy.run_path("tests/effects_tests/test_swarm.py")["test_swarm_coordination_advances_past_area_nine"]; [(random.seed(seed), test(coordination, area)) for seed in range(100) for coordination, area in [(0, "9_swarm_area"), (1, "10_swarm_area")]]; print("200 seeded coordination cases passed")'
       - name: TTE full default suite on Unix
         if: matrix.project.name == 'tte' && runner.os != 'Windows'
         run: python -m pytest -n 2
@@ -75,8 +85,8 @@ jobs:
         if: matrix.project.name == 'tte'
         run: |
           python -m tools.generate_shell_completions --check
-          python -m ruff check terminaltexteffects/__main__.py tests/test_cli_repeat.py
-          python -m pyright terminaltexteffects/__main__.py tests/test_cli_repeat.py
+          python -m ruff check terminaltexteffects/__main__.py tests/test_cli_repeat.py terminaltexteffects/effects/effect_swarm.py tests/effects_tests/test_swarm.py tools/generate_shell_completions.py tests/test_cli.py
+          python -m pyright terminaltexteffects/__main__.py tests/test_cli_repeat.py terminaltexteffects/effects/effect_swarm.py tests/effects_tests/test_swarm.py tools/generate_shell_completions.py tests/test_cli.py
       - name: Install pydoro dependencies and tools
         if: matrix.project.name == 'pydoro'
         run: python -m pip install prompt-toolkit pytest flake8 setuptools wheel
