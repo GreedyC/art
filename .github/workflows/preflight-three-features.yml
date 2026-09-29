@@ -1,0 +1,75 @@
+name: Three user-facing features preflight
+on:
+  push:
+    branches: [codex/preflight-three-features]
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: ${{ matrix.project.name }} / ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-15-intel]
+        python: ['3.9', '3.14']
+        project:
+          - name: art
+            repo: GreedyC/art
+            sha: c06cd537617c4a5e45576341a5afffa6aeb6f708
+          - name: tte
+            repo: GreedyC/terminaltexteffects
+            sha: 42524313d88b2d10f3ec75f9bda23a9719f2ae09
+          - name: pydoro
+            repo: GreedyC/pydoro
+            sha: dd16c348b8e7465aff8ce170a33a1423b5b45b9c
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.project.repo }}
+          ref: ${{ matrix.project.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install ART and quality tools
+        if: matrix.project.name == 'art'
+        run: python -m pip install . bandit pydocstyle vulture build twine
+      - name: ART doctests, catalogues and quality
+        if: matrix.project.name == 'art'
+        run: |
+          python -m art test2
+          python otherfile/font_check.py
+          python otherfile/art_decor_check.py
+          python -m bandit -r art -s B311
+          python -m pydocstyle art/functions.py art/params.py
+          python -m vulture art/ otherfile/ setup.py art_profile.py --min-confidence 65 --exclude=__init__.py --sort-by-size
+          python -m build
+          python -m twine check dist/*
+      - name: Install TTE and test tools
+        if: matrix.project.name == 'tte'
+        run: python -m pip install -e . pytest pytest-xdist shtab==1.9.2 ruff pyright
+      - name: Install Linux zsh for upstream shell tests
+        if: matrix.project.name == 'tte' && runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y zsh
+      - name: TTE focused tests on Windows
+        if: matrix.project.name == 'tte' && runner.os == 'Windows'
+        run: python -m pytest -n 2 tests/test_cli_repeat.py tests/test_cli.py tests/engine_tests/test_base_effect.py -k 'not bash and not zsh'
+      - name: TTE full default suite on Unix
+        if: matrix.project.name == 'tte' && runner.os != 'Windows'
+        run: python -m pytest -n 2
+      - name: TTE completion and quality checks
+        if: matrix.project.name == 'tte'
+        run: |
+          python -m tools.generate_shell_completions --check
+          python -m ruff check terminaltexteffects/__main__.py tests/test_cli_repeat.py
+          python -m pyright terminaltexteffects/__main__.py tests/test_cli_repeat.py
+      - name: Install pydoro dependencies and tools
+        if: matrix.project.name == 'pydoro'
+        run: python -m pip install prompt-toolkit pytest flake8 setuptools wheel
+      - name: pydoro tests, lint and legacy wheel build
+        if: matrix.project.name == 'pydoro'
+        run: |
+          python -m pytest tests/test_skip.py
+          python -m flake8 pydoro tests/test_skip.py --select=E9,F63,F7,F82 --show-source
+          python setup.py bdist_wheel
