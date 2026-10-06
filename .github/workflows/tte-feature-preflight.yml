@@ -24,10 +24,48 @@ jobs:
           python-version: ${{ matrix.python }}
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
       - run: uv sync --locked --group dev
-      - name: Full default suite
+      - name: Install Linux test shell
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- update
+          sudo apt-get -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=- install --yes zsh
+      - name: Full Unix default suite
+        if: runner.os != 'Windows'
         run: uv run --frozen --group dev python -m pytest -n 2 --tb=short
+      - name: Native Windows replay, terminal, and PowerShell checks
+        if: runner.os == 'Windows'
+        env:
+          PYTHONUTF8: '1'
+          TTE_REQUIRE_PWSH: '1'
+        run: uv run --frozen --group dev python -m pytest -n 2 tests/test_cli_repeat.py tests/test_powershell_completion.py tests/engine_tests/test_terminal.py tests/engine_tests/test_terminal_input.py tests/engine_tests/test_terminal_unicode.py tests/engine_tests/test_terminal_ansi_sequences.py tests/engine_tests/test_base_config.py
       - name: Quality and completion artifacts
         run: |
           uv run --frozen --group dev python tools/check_quality.py --all
           uv run --frozen --group dev python tools/generate_shell_completions.py --check
           uv run --frozen --group dev python tools/generate_changelog.py --check
+  windows-baseline:
+    name: Compare Windows full-suite failures with unchanged upstream
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+      - uses: actions/checkout@v4
+        with:
+          repository: GreedyC/terminaltexteffects
+          ref: 966f8a51ce0f18f50c40afb82bb8dfd5544692e1
+          path: feature
+      - uses: actions/checkout@v4
+        with:
+          repository: ChrisBuilds/terminaltexteffects
+          ref: a130698ce17e32f57369f55c9b833bf6798e6247
+          path: baseline
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7
+      - run: uv sync --locked --group dev --project feature
+      - run: uv sync --locked --group dev --project baseline
+      - name: Compare failing test IDs without masking feature regressions
+        run: python harness/tools/compare-tte-windows-baseline.py
